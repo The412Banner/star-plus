@@ -1,0 +1,36 @@
+.class public final synthetic Lcom/winlator/cmod/widget/TouchpadView$$ExternalSyntheticLambda3;
+.super Ljava/lang/Object;
+.source "D8$$SyntheticClass"
+
+# interfaces
+.implements Ljava/lang/Runnable;
+
+
+# instance fields
+.field public final synthetic f$0:Lcom/winlator/cmod/widget/TouchpadView;
+
+
+# direct methods
+.method public synthetic constructor <init>(Lcom/winlator/cmod/widget/TouchpadView;)V
+    .locals 0
+
+    .line 0
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    iput-object p1, p0, Lcom/winlator/cmod/widget/TouchpadView$$ExternalSyntheticLambda3;->f$0:Lcom/winlator/cmod/widget/TouchpadView;
+
+    return-void
+.end method
+
+
+# virtual methods
+.method public final run()V
+    .locals 1
+
+    .line 0
+    iget-object v0, p0, Lcom/winlator/cmod/widget/TouchpadView$$ExternalSyntheticLambda3;->f$0:Lcom/winlator/cmod/widget/TouchpadView;
+
+    invoke-static {v0}, Lcom/winlator/cmod/widget/TouchpadView;->$r8$lambda$3bXMjJ-1Tal82zoj4R7pAI2i0Ec(Lcom/winlator/cmod/widget/TouchpadView;)V
+
+    return-void
+.end method

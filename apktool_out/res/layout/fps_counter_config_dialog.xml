@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView android:layout_width="wrap_content" android:layout_height="wrap_content"
+  xmlns:android="http://schemas.android.com/apk/res/android">
+    <LinearLayout android:orientation="vertical" android:padding="16.0dip" android:layout_width="300.0dip" android:layout_height="wrap_content">
+        <CheckBox android:id="@id/CBShowFPS" android:layout_width="fill_parent" android:layout_height="wrap_content" android:text="Show FPS" />
+        <CheckBox android:id="@id/CBShowCPULoad" android:layout_width="fill_parent" android:layout_height="wrap_content" android:text="Show CPU Temperature" />
+        <CheckBox android:id="@id/CBShowGPULoad" android:layout_width="fill_parent" android:layout_height="wrap_content" android:text="Show GPU Load" />
+        <CheckBox android:id="@id/CBShowRAM" android:layout_width="fill_parent" android:layout_height="wrap_content" android:text="Show RAM Usage" />
+        <CheckBox android:id="@id/CBShowRenderer" android:layout_width="fill_parent" android:layout_height="wrap_content" android:text="Show Renderer/GPU Name" />
+        <CheckBox android:id="@id/CBShowBatteryTemp" android:layout_width="fill_parent" android:layout_height="wrap_content" android:text="Show Battery Temperature" />
+        <CheckBox android:id="@id/CBShowBatteryVoltage" android:layout_width="fill_parent" android:layout_height="wrap_content" android:text="Show Battery Voltage" />
+        <TextView android:textStyle="bold" android:textColor="?android:textColorPrimary" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginTop="16.0dip" android:text="HUD Scale" />
+        <LinearLayout android:gravity="center_vertical" android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginTop="8.0dip">
+            <SeekBar android:id="@id/SBHUDScale" android:layout_width="0.0dip" android:layout_height="wrap_content" android:max="150" android:progress="100" android:layout_weight="1.0" android:min="50" />
+            <TextView android:textColor="?android:textColorPrimary" android:gravity="end" android:id="@id/TVHUDScaleValue" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minWidth="45.0dip" android:text="100%" />
+        </LinearLayout>
+        <TextView android:textStyle="bold" android:textColor="?android:textColorPrimary" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginTop="16.0dip" android:text="HUD Transparency" />
+        <LinearLayout android:gravity="center_vertical" android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginTop="8.0dip">
+            <SeekBar android:id="@id/SBHUDTransparency" android:layout_width="0.0dip" android:layout_height="wrap_content" android:max="50" android:progress="40" android:layout_weight="1.0" android:min="0" />
+            <TextView android:textColor="?android:textColorPrimary" android:gravity="end" android:id="@id/TVHUDTransparencyValue" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minWidth="45.0dip" android:text="40" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

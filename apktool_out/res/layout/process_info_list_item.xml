@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout android:gravity="center_vertical" android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="38.0dip"
+  xmlns:android="http://schemas.android.com/apk/res/android">
+    <ImageView android:id="@id/IVIcon" android:paddingLeft="4.0dip" android:layout_width="26.0dip" android:layout_height="26.0dip" />
+    <TextView android:ellipsize="end" android:id="@id/TVName" android:paddingLeft="6.0dip" android:layout_width="0.0dip" android:layout_height="wrap_content" android:maxLines="1" android:layout_weight="1.0" />
+    <TextView android:id="@id/TVPID" android:paddingLeft="4.0dip" android:layout_width="60.0dip" android:layout_height="wrap_content" />
+    <TextView android:id="@id/TVMemoryUsage" android:paddingLeft="4.0dip" android:layout_width="110.0dip" android:layout_height="wrap_content" />
+    <RelativeLayout android:gravity="center" android:layout_width="40.0dip" android:layout_height="40.0dip">
+        <ImageButton android:id="@id/BTMenu" android:src="@drawable/icon_list_item_menu" style="@style/ListMenuButton" />
+    </RelativeLayout>
+</LinearLayout>

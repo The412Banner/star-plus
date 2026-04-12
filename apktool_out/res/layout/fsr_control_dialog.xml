@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout android:orientation="vertical" android:background="#dd000000" android:padding="0.0dip" android:layout_width="280.0dip" android:layout_height="wrap_content"
+  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
+    <TextView android:textStyle="bold" android:textColor="#ffffffff" android:gravity="center" android:id="@id/LBLTitle" android:background="#44ffffff" android:padding="10.0dip" android:layout_width="fill_parent" android:layout_height="wrap_content" android:text="Graphics Engine" />
+    <ScrollView android:padding="12.0dip" android:layout_width="fill_parent" android:layout_height="wrap_content" android:fillViewport="true">
+        <LinearLayout android:orientation="vertical" android:layout_width="fill_parent" android:layout_height="wrap_content">
+            <Spinner android:id="@id/SPUpscalerMode" android:padding="5.0dip" android:layout_width="fill_parent" android:layout_height="wrap_content" android:spinnerMode="dropdown" android:backgroundTint="#ff00e5ff" />
+            <Switch android:textColor="#ffffffff" android:id="@id/SWEnableFSR" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginTop="5.0dip" android:text="Enable" />
+            <TextView android:textSize="12.0sp" android:textColor="#ffcccccc" android:id="@id/LBLSharpnessHeader" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10.0dip" android:text="Strength" />
+            <com.winlator.cmod.widget.SeekBar android:id="@id/SBSharpness" android:layout_width="fill_parent" android:layout_height="40.0dip" app:maxValue="100" app:minValue="0" app:step="1" />
+            <View android:background="#33ffffff" android:layout_width="fill_parent" android:layout_height="1.0dip" android:layout_marginTop="15.0dip" android:layout_marginBottom="15.0dip" />
+            <TextView android:textSize="14.0sp" android:textStyle="bold" android:textColor="#ffffd700" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="HDR" />
+            <Switch android:textColor="#ffffffff" android:id="@id/SWEnableHDR" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_marginTop="5.0dip" android:text="Enable" />
+            <Button android:textColor="#ffaaaaaa" android:id="@id/BTClose" android:layout_width="fill_parent" android:layout_height="35.0dip" android:layout_marginTop="20.0dip" android:layout_marginBottom="5.0dip" android:text="Close" android:backgroundTint="#ff444444" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
