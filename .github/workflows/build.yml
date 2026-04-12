@@ -44,8 +44,17 @@ jobs:
 
       - name: Apply patches
         run: |
-          cp -r patches/* apktool_out/
+          # Copy smali patches and resource patches EXCEPT public.xml
+          # public.xml must be merged, not replaced, to preserve all existing pinned IDs
+          cp -r patches/smali_classes8 apktool_out/
+          cp -r patches/smali_classes2 apktool_out/
+          cp patches/AndroidManifest.xml apktool_out/AndroidManifest.xml
+          cp patches/res/menu/main_menu.xml apktool_out/res/menu/main_menu.xml
+          # Inject our 3 new IDs into the existing public.xml (before </resources>)
+          sed -i 's|</resources>|    <public type="id" name="main_menu_gog" id="0x7f0903a6" />\n    <public type="id" name="main_menu_epic" id="0x7f0903a7" />\n    <public type="id" name="main_menu_amazon" id="0x7f0903a8" />\n</resources>|' \
+            apktool_out/res/values/public.xml
           echo "Patches applied"
+          echo "public.xml IDs injected: $(grep 'main_menu_gog\|main_menu_epic\|main_menu_amazon' apktool_out/res/values/public.xml | wc -l) new entries"
 
       - name: Remove ab_*.png pseudo-PNG files before aapt2
         run: |
