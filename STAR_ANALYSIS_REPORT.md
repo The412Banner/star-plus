@@ -922,7 +922,29 @@ Store credentials as GitHub Actions secrets, not in the repository.
 
 ---
 
-### 11.9 Summary — what the source integration looks like end-to-end
+### 11.9 Source integration package (download)
+
+All 29 Java files + ready-to-paste snippets are bundled in a single zip attached to the v1.0.0 release:
+
+**[star-source-integration.zip](https://github.com/The412Banner/star-test/releases/download/v1.0.0/star-source-integration.zip)**
+
+```
+star-source-integration/
+├── README.txt                                  5-step integration guide
+├── store/                                      29 Java source files
+│   ├── Gog*.java          (8 files)
+│   ├── Epic*.java         (8 files)
+│   ├── Amazon*.java      (12 files)
+│   └── LudashiLaunchBridge.java
+└── snippets/
+    ├── 1_build_gradle_additions.groovy         dependencies + vectorDrawables
+    ├── 2_AndroidManifest_additions.xml         9 activity declarations
+    ├── 3_main_menu_additions.xml               3 menu items
+    ├── 4_MainActivity_additions.java           switch cases (Java + Kotlin)
+    └── 5_LudashiLaunchBridge_replacement.java  direct ContainerManager calls
+```
+
+### 11.10 Summary — what the source integration looks like end-to-end
 
 ```
 1. Copy extension/*.java → app/src/main/java/com/winlator/cmod/store/
@@ -958,6 +980,6 @@ That is the complete integration — roughly 30 minutes of work with source acce
 
 ---
 
-*Report version: 3.1 — 2026-04-12 (v1.0.0 stable released, all phases complete)*  
+*Report version: 3.2 — 2026-04-12 (v1.0.0 stable released, source integration zip added)*  
 *Integration repo: https://github.com/The412Banner/star-test*  
 *Reference builds: Ludashi-plus · REF4IK-Banner*
