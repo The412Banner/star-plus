@@ -944,7 +944,43 @@ star-source-integration/
     └── 5_LudashiLaunchBridge_replacement.java  direct ContainerManager calls
 ```
 
-### 11.10 Summary — what the source integration looks like end-to-end
+### 11.10 Universal integration package (any Winlator Bionic build)
+
+The store integration has been tested on three separate Winlator Bionic variants:
+
+| Build | Package | DEX count | Result |
+|---|---|---|---|
+| Star Bionic | `com.winlator.star` | 16 | ✅ v1.0.0 |
+| REF4IK-Banner | `com.winlator.cmod` | 14 | ✅ v1.0.1 |
+| Ludashi-plus | `com.winlator.cmod` | varies | ✅ |
+
+Because all Bionic builds share the same `com.winlator.cmod.*` package structure, the same 29 Java files and integration steps work across all of them. A **universal package** covering both Path A (Gradle/source) and Path B (APK mod) is available:
+
+**[winlator-store-integration.zip](https://github.com/The412Banner/star-test/releases/download/v1.0.0/winlator-store-integration.zip)**
+
+```
+winlator-store-integration/
+├── INTEGRATION_GUIDE.md          Universal guide — Path A (source) + Path B (APK mod)
+├── store/                        29 Java source files (all 3 stores)
+│   ├── Gog*.java      (8 files)
+│   ├── Epic*.java     (8 files)
+│   ├── Amazon*.java  (12 files)
+│   └── LudashiLaunchBridge.java
+└── snippets/
+    ├── 1_build_gradle_additions.groovy
+    ├── 2_AndroidManifest_additions.xml
+    ├── 3_main_menu_additions.xml
+    ├── 4_MainActivity_additions.java        (Java + Kotlin)
+    ├── 5_LudashiLaunchBridge_replacement.java
+    └── apk_mod/
+        ├── smali_switch_handler_template.smali
+        ├── smali_Rid_fields_template.smali
+        └── ci_build_template.yml            Full GitHub Actions workflow
+```
+
+The `INTEGRATION_GUIDE.md` inside covers every step with full context on the known pitfalls (public.xml merge strategy, VectorDrawableCompat fix, ab_* animation frames, register poisoning, DEX slot selection).
+
+### 11.11 Summary — what the source integration looks like end-to-end
 
 ```
 1. Copy extension/*.java → app/src/main/java/com/winlator/cmod/store/
@@ -980,6 +1016,6 @@ That is the complete integration — roughly 30 minutes of work with source acce
 
 ---
 
-*Report version: 3.2 — 2026-04-12 (v1.0.0 stable released, source integration zip added)*  
+*Report version: 3.3 — 2026-04-12 (v1.0.0 stable; source zip + universal integration package added)*  
 *Integration repo: https://github.com/The412Banner/star-test*  
 *Reference builds: Ludashi-plus · REF4IK-Banner*
