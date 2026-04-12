@@ -63,7 +63,7 @@ jobs:
           echo "Removing $AB_COUNT ab_*.png pseudo-PNG files"
           find "$DRAWABLE_DIR" -name 'ab_*.png' -delete
           rm -f "$DRAWABLE_DIR/animated_background.xml"
-          sed -i '/name="ab_[0-9]\|name="animated_background/d' \
+          sed -i '/name="ab_\|name="animated_background/d' \
             apktool_out/res/values/public.xml
           echo "Done — aapt2 will not see ab_* entries"
 
