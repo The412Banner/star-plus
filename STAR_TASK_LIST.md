@@ -82,8 +82,8 @@
 - [x] **5.1** Push first tag (`v1.0.0-pre`) — CI triggered
 - [x] **5.2** CI run 24295336304 ✅ — all steps green; 71 class files compiled; `classes17.dex` 1.2M built
 - [x] **5.3** `classes17.dex` confirmed present in APK (1,212,264 bytes, CI log verified)
-- [ ] **5.4** Install APK — confirm GOG, Epic, Amazon entries appear in side menu _(requires device)_
-- [ ] **5.5** Confirm no crash on tapping each store entry (Activities launch) _(requires device)_
+- [x] **5.4** Install APK — GOG, Epic, Amazon entries confirmed in nav drawer ✅
+- [x] **5.5** No crash — GogMainActivity (35ms), GogLoginActivity (250ms), GogGamesActivity (33ms) all launched cleanly ✅
 
 ---
 
