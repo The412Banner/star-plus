@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <public type="id" name="main_menu_gog" id="0x7f0903a6" />
+    <public type="id" name="main_menu_epic" id="0x7f0903a7" />
+    <public type="id" name="main_menu_amazon" id="0x7f0903a8" />
+</resources>

@@ -9,6 +9,28 @@
 
 ---
 
+## Implementation Status
+
+| Task | Status | Notes |
+|---|---|---|
+| Repo created | ✅ Done | https://github.com/The412Banner/star-test |
+| Base APK uploaded to `base-apk` release | ✅ Done | `star-Bionic_original.apk` (547MB) |
+| 28 extension Java files copied to `extension/` | ✅ Done | From Ludashi-plus |
+| `testkey.pk8` / `testkey.x509.pem` added | ✅ Done | AOSP testkey |
+| `patches/smali_classes8/.../MainActivity.smali` — sparse-switch + 3 handlers | ✅ Done | IDs `0x7f0903a6/a7/a8`, using `v3` scratch |
+| `patches/smali_classes2/.../R$id.smali` — 3 field constants | ✅ Done | IDs corrected from initial plan |
+| `patches/res/menu/main_menu.xml` — 3 store items | ✅ Done | GOG, Epic Games, Amazon Games |
+| `patches/res/values/public.xml` — 3 ID pins | ✅ Done | Avoids aapt2 reassignment |
+| `patches/AndroidManifest.xml` — 9 activity declarations | ✅ Done | `fullSensor` orientation |
+| `.github/workflows/build.yml` — full CI pipeline | ✅ Done | javac + d8 → classes17.dex inject |
+| First CI build | ⏳ Pending | Tag v1.0.0-pre to trigger |
+| Functional test — GOG | ⏳ Pending | |
+| Functional test — Epic | ⏳ Pending | |
+| Functional test — Amazon | ⏳ Pending | |
+| Stable release | ⏳ Pending | |
+
+---
+
 ## Executive Summary
 
 Star Bionic is a **Winlator Bionic** build sharing the exact same Java source package (`com.winlator.cmod.*`) as Ludashi-plus and REF4IK-Banner. This means the **28 Java extension files** already written and proven in those projects transfer directly to Star — zero rewrites required. Only three surgical changes to the existing smali/resources are needed to wire the stores into the navigation drawer, plus a CI workflow to compile and inject the new DEX on every build.
@@ -77,9 +99,11 @@ XServerDisplayActivity → Wine → FEXCore/Box64 → game.exe
 
 | ID name | Hex value | Activity |
 |---|---|---|
-| `main_menu_gog` | `0x7f09027f` | `GogMainActivity` |
-| `main_menu_epic` | `0x7f090280` | `EpicMainActivity` |
-| `main_menu_amazon` | `0x7f090281` | `AmazonMainActivity` |
+| `main_menu_gog` | `0x7f0903a6` | `GogMainActivity` |
+| `main_menu_epic` | `0x7f0903a7` | `EpicMainActivity` |
+| `main_menu_amazon` | `0x7f0903a8` | `AmazonMainActivity` |
+
+> **ID conflict note:** IDs `0x7f09027f–0x7f090281` were originally planned but are taken by MaterialComponents (`masked`, `material_clock_display`, `material_clock_face`). The last free slot after `public.xml`'s final entry (`zero_corner_chip` at `0x7f0903a5`) was used instead.
 
 ---
 
@@ -237,9 +261,9 @@ All 28 extension Java files + `org.json` + `commons-compress` compile to approxi
     0x7f090279 -> :sswitch_2   # saves
     0x7f09027b -> :sswitch_1   # settings
     0x7f09027c -> :sswitch_0   # shortcuts
-    0x7f09027f -> :sswitch_8   # GOG    ← NEW
-    0x7f090280 -> :sswitch_9   # Epic   ← NEW
-    0x7f090281 -> :sswitch_a   # Amazon ← NEW
+    0x7f0903a6 -> :sswitch_8   # GOG    ← NEW
+    0x7f0903a7 -> :sswitch_9   # Epic   ← NEW
+    0x7f0903a8 -> :sswitch_a   # Amazon ← NEW
 .end sparse-switch
 ```
 
@@ -275,9 +299,9 @@ All 28 extension Java files + `org.json` + `commons-compress` compile to approxi
 
 Add after the `main_menu_toggle_fullscreen` line:
 ```smali
-.field public static final main_menu_gog:I = 0x7f09027f
-.field public static final main_menu_epic:I = 0x7f090280
-.field public static final main_menu_amazon:I = 0x7f090281
+.field public static final main_menu_gog:I = 0x7f0903a6
+.field public static final main_menu_epic:I = 0x7f0903a7
+.field public static final main_menu_amazon:I = 0x7f0903a8
 ```
 
 ### 8.3 Summary of all patch files
@@ -365,9 +389,9 @@ Add 3 items after `main_menu_shortcuts`:
 Add to the `id` type section (pins hex values so aapt2 doesn't reassign them):
 
 ```xml
-<public type="id" name="main_menu_gog" id="0x7f09027f" />
-<public type="id" name="main_menu_epic" id="0x7f090280" />
-<public type="id" name="main_menu_amazon" id="0x7f090281" />
+<public type="id" name="main_menu_gog" id="0x7f0903a6" />
+<public type="id" name="main_menu_epic" id="0x7f0903a7" />
+<public type="id" name="main_menu_amazon" id="0x7f0903a8" />
 ```
 
 ---

@@ -125,9 +125,11 @@
 
 | ID name | Hex | Purpose |
 |---|---|---|
-| `main_menu_gog` | `0x7f09027f` | sparse-switch entry + R$id field + menu item + public.xml pin |
-| `main_menu_epic` | `0x7f090280` | sparse-switch entry + R$id field + menu item + public.xml pin |
-| `main_menu_amazon` | `0x7f090281` | sparse-switch entry + R$id field + menu item + public.xml pin |
+| `main_menu_gog` | `0x7f0903a6` | sparse-switch entry + R$id field + menu item + public.xml pin |
+| `main_menu_epic` | `0x7f0903a7` | sparse-switch entry + R$id field + menu item + public.xml pin |
+| `main_menu_amazon` | `0x7f0903a8` | sparse-switch entry + R$id field + menu item + public.xml pin |
+
+> **Note:** IDs `0x7f09027f–0x7f090281` (originally planned) are taken by MaterialComponents. Final IDs are the 3 slots after `public.xml`'s last entry (`zero_corner_chip` = `0x7f0903a5`).
 
 ---
 

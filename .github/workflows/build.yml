@@ -1,0 +1,122 @@
+name: Build Star Bionic + Store Integration
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 11
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Install apktool
+        run: |
+          wget -q https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar -O apktool.jar
+          printf '#!/bin/sh\njava -jar /usr/local/bin/apktool.jar "$@"\n' > apktool
+          chmod +x apktool
+          sudo mv apktool /usr/local/bin/apktool
+          sudo mv apktool.jar /usr/local/bin/apktool.jar
+          apktool --version
+
+      - name: Download base APK
+        run: |
+          gh release download base-apk --pattern "*.apk" --output base.apk
+          echo "Base APK: $(du -sh base.apk | cut -f1)"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Decompile APK
+        run: |
+          apktool d base.apk -o apktool_out -f
+          echo "Decompiled: $(find apktool_out/smali* -name '*.smali' | wc -l) smali files"
+
+      - name: Apply patches
+        run: |
+          cp -r patches/* apktool_out/
+          echo "Patches applied"
+
+      - name: Download org.json dependency
+        run: |
+          wget -q "https://repo1.maven.org/maven2/org/json/json/20240303/json-20240303.jar" -O org-json.jar
+          echo "org-json.jar: $(du -sh org-json.jar | cut -f1)"
+
+      - name: Download commons-compress (Amazon LZMA)
+        run: |
+          wget -q "https://repo1.maven.org/maven2/org/apache/commons/commons-compress/1.26.0/commons-compress-1.26.0.jar" -O commons-compress.jar
+          echo "commons-compress.jar: $(du -sh commons-compress.jar | cut -f1)"
+
+      - name: Compile store extension → classes17.dex
+        run: |
+          ANDROID_JAR=$(ls $ANDROID_SDK_ROOT/platforms/android-*/android.jar 2>/dev/null | sort -V | tail -1)
+          echo "Using android.jar: $ANDROID_JAR"
+
+          mkdir -p ext_classes
+          javac -source 8 -target 8 \
+            -cp "$ANDROID_JAR:org-json.jar:commons-compress.jar" \
+            -d ext_classes \
+            extension/*.java
+          echo "Compiled $(find ext_classes -name '*.class' | wc -l) class files"
+
+          BUILD_TOOLS=$(ls $ANDROID_SDK_ROOT/build-tools | sort -V | tail -1)
+          echo "Using build-tools: $BUILD_TOOLS"
+          mkdir -p ext_dex
+          $ANDROID_SDK_ROOT/build-tools/$BUILD_TOOLS/d8 \
+            --release --min-api 26 --output ext_dex \
+            $(find ext_classes -name '*.class') \
+            org-json.jar \
+            commons-compress.jar
+          echo "classes17.dex ready: $(du -sh ext_dex/classes.dex | cut -f1)"
+
+      - name: Rebuild APK
+        run: |
+          apktool b apktool_out -o rebuilt-unsigned.apk
+          echo "Rebuilt APK: $(du -sh rebuilt-unsigned.apk | cut -f1)"
+
+      - name: Inject classes17.dex
+        run: |
+          cp ext_dex/classes.dex classes17.dex
+          zip -j rebuilt-unsigned.apk classes17.dex
+          echo "classes17.dex injected: $(du -sh classes17.dex | cut -f1)"
+          unzip -l rebuilt-unsigned.apk | grep "classes.*dex"
+
+      - name: Zipalign
+        run: |
+          BUILD_TOOLS=$(ls $ANDROID_SDK_ROOT/build-tools | sort -V | tail -1)
+          $ANDROID_SDK_ROOT/build-tools/$BUILD_TOOLS/zipalign -p -f 4 \
+            rebuilt-unsigned.apk aligned.apk
+          echo "Zipaligned: $(du -sh aligned.apk | cut -f1)"
+
+      - name: Sign APK
+        run: |
+          BUILD_TOOLS=$(ls $ANDROID_SDK_ROOT/build-tools | sort -V | tail -1)
+          APK_NAME="star-bionic-${{ github.ref_name }}.apk"
+          $ANDROID_SDK_ROOT/build-tools/$BUILD_TOOLS/apksigner sign \
+            --key testkey.pk8 \
+            --cert testkey.x509.pem \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --out "$APK_NAME" \
+            aligned.apk
+          echo "Signed APK: $(du -sh $APK_NAME | cut -f1)"
+          echo "APK_NAME=$APK_NAME" >> $GITHUB_ENV
+
+      - name: Create release and upload APK
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            "${{ env.APK_NAME }}" \
+            --title "Star Bionic ${{ github.ref_name }}" \
+            --prerelease \
+            --notes "Pre-release build: GOG + Epic + Amazon store integration for Star Bionic V1.0"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
