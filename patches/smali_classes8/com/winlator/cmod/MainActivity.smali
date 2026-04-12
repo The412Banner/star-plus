@@ -1073,6 +1073,9 @@
     .param p1, "savedInstanceState"    # Landroid/os/Bundle;
 
     .line 78
+    const/4 v0, 0x1
+    invoke-static {v0}, Landroidx/appcompat/app/AppCompatDelegate;->setCompatVectorFromResourcesEnabled(Z)V
+
     invoke-super {p0, p1}, Landroidx/appcompat/app/AppCompatActivity;->onCreate(Landroid/os/Bundle;)V
 
     .line 81
