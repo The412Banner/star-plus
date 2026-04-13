@@ -8,6 +8,7 @@ import android.os.Looper;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.InputStream;
@@ -26,6 +27,14 @@ import java.util.List;
  * listing all Wine containers, then writes a .desktop shortcut file into the
  * selected container's desktop directory. The shortcut then appears in
  * Star Bionic's Shortcuts list where the user can launch and configure it.
+ *
+ * Cover art flow:
+ *   addToLauncherWithArt() downloads the image to a temp cache file, then
+ *   writeShortcut() copies it into the container's XDG icon directory at
+ *   {containerRootDir}/.local/share/icons/hicolor/64x64/apps/{safeName}.png
+ *   and sets Icon={safeName} in the .desktop file. Shortcut.loadIcon() looks
+ *   there first, so the icon shows immediately in the Shortcuts list.
+ *   customCoverArtPath is also written to [Extra Data] for BigPicture use.
  */
 public final class StarBionicLaunchBridge {
 
@@ -167,14 +176,33 @@ public final class StarBionicLaunchBridge {
                 String winPath = GogInstallPath.toWinePath(activity, exePath);
                 String escapedWinPath = winPath.replace("\\", "\\\\\\\\");
 
-                String coverArtLine = (iconPath != null && !iconPath.isEmpty())
-                        ? "customCoverArtPath=" + iconPath + "\n"
-                        : "";
+                // Place cover art in container's XDG icon dir.
+                // Shortcut constructor reads Icon={name}, looks for {name}.png in
+                // container.getIconsDir(64) = {rootDir}/.local/share/icons/hicolor/64x64/apps/
+                // That bitmap becomes shortcut.icon — what ShortcutsAdapter displays.
+                String iconName = "";
+                String coverArtLine = "";
+                if (iconPath != null && !iconPath.isEmpty()) {
+                    try {
+                        Method getRootDir = container.getClass().getMethod("getRootDir");
+                        File rootDir = (File) getRootDir.invoke(container);
+                        if (rootDir != null) {
+                            File iconDir = new File(rootDir,
+                                    ".local/share/icons/hicolor/64x64/apps");
+                            iconDir.mkdirs();
+                            File iconDest = new File(iconDir, safeName + ".png");
+                            copyFile(new File(iconPath), iconDest);
+                            if (iconDest.length() > 0) iconName = safeName;
+                        }
+                    } catch (Exception ignored) {}
+                    // Also write customCoverArtPath for BigPicture activity
+                    coverArtLine = "customCoverArtPath=" + iconPath + "\n";
+                }
 
                 String content = "[Desktop Entry]\n"
                         + "Name=" + gameName + "\n"
                         + "Exec=wine " + escapedWinPath + "\n"
-                        + "Icon=\n"
+                        + "Icon=" + iconName + "\n"
                         + "Type=Application\n"
                         + "StartupWMClass=explorer\n"
                         + "\n"
@@ -196,5 +224,13 @@ public final class StarBionicLaunchBridge {
                         Toast.LENGTH_LONG).show());
             }
         }).start();
+    }
+
+    private static void copyFile(File src, File dest) throws java.io.IOException {
+        try (FileInputStream in = new FileInputStream(src);
+             FileOutputStream out = new FileOutputStream(dest)) {
+            byte[] buf = new byte[8192]; int n;
+            while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+        }
     }
 }
