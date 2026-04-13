@@ -1558,6 +1558,14 @@
     invoke-virtual {p0, v1}, Lcom/winlator/cmod/MainActivity;->startActivity(Landroid/content/Intent;)V
     goto :goto_0
 
+    .line 431
+    :sswitch_b
+    new-instance v1, Landroid/content/Intent;
+    const-class v3, Lcom/winlator/cmod/store/SteamMainActivity;
+    invoke-direct {v1, p0, v3}, Landroid/content/Intent;-><init>(Landroid/content/Context;Ljava/lang/Class;)V
+    invoke-virtual {p0, v1}, Lcom/winlator/cmod/MainActivity;->startActivity(Landroid/content/Intent;)V
+    goto :goto_0
+
     nop
 
     :sswitch_data_0
@@ -1573,6 +1581,7 @@
         0x7f0903a6 -> :sswitch_8
         0x7f0903a7 -> :sswitch_9
         0x7f0903a8 -> :sswitch_a
+        0x7f0903a9 -> :sswitch_b
     .end sparse-switch
 .end method
 

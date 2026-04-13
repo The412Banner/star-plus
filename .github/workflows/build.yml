@@ -15,11 +15,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java 11
+      - name: Set up Java 17
         uses: actions/setup-java@v3
         with:
           distribution: temurin
-          java-version: '11'
+          java-version: '17'
 
       - name: Install apktool
         run: |
@@ -37,6 +37,191 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Detect Kotlin version in base APK and install matching kotlinc
+        run: |
+          KT_VERSION=$(unzip -l base.apk | grep -oP 'kotlin-stdlib-\K[\d.]+' | head -1 || echo "")
+          if [ -z "$KT_VERSION" ]; then
+            KT_VERSION="1.9.24"
+            echo "Could not detect Kotlin version — defaulting to $KT_VERSION"
+          else
+            echo "Detected Kotlin version: $KT_VERSION"
+          fi
+          echo "KT_VERSION=$KT_VERSION" >> $GITHUB_ENV
+
+          KT_MAJOR_MINOR=$(echo "$KT_VERSION" | cut -d. -f1-2)
+          KOTLINC_URL="https://github.com/JetBrains/kotlin/releases/download/v${KT_VERSION}/kotlin-compiler-${KT_VERSION}.zip"
+          echo "Downloading: $KOTLINC_URL"
+          wget -q "$KOTLINC_URL" -O kotlinc.zip || {
+            FALLBACK="1.9.24"
+            echo "Exact version not found, falling back to $FALLBACK"
+            wget -q "https://github.com/JetBrains/kotlin/releases/download/v${FALLBACK}/kotlin-compiler-${FALLBACK}.zip" \
+              -O kotlinc.zip
+          }
+          unzip -q kotlinc.zip -d $HOME/
+          echo "$HOME/kotlinc/bin" >> $GITHUB_PATH
+          kotlinc -version
+
+      - name: Build JavaSteam from source
+        run: |
+          git clone --depth 1 -b gamenative-latest https://github.com/joshuatam/JavaSteam javasteam_src
+          cd javasteam_src
+
+          # Patch HardwareUtils.java: SystemUtils.IS_OS_ANDROID missing in commons-lang3 3.14.0
+          HW_FILE=$(find . -name "HardwareUtils.java" 2>/dev/null | head -1)
+          if [ -n "$HW_FILE" ]; then
+            sed -i 's/SystemUtils\.IS_OS_ANDROID/false/g' "$HW_FILE"
+            echo "Patched $HW_FILE"
+          fi
+
+          # Patch Utils.java: newer SystemUtils OS fields missing in older commons-lang3
+          UTILS_FILE=$(find . -name "Utils.java" -path "*/javasteam/*" 2>/dev/null | head -1)
+          if [ -n "$UTILS_FILE" ]; then
+            sed -i \
+              -e 's/SystemUtils\.IS_OS_MAC_OSX_SONOMA/false/g' \
+              -e 's/SystemUtils\.IS_OS_MAC_OSX_VENTURA/false/g' \
+              -e 's/SystemUtils\.IS_OS_MAC_OSX_MONTEREY/false/g' \
+              -e 's/SystemUtils\.IS_OS_MAC_OSX_BIG_SUR/false/g' \
+              -e 's/SystemUtils\.IS_OS_WINDOWS_11/false/g' \
+              "$UTILS_FILE"
+            echo "Patched $UTILS_FILE"
+          else
+            find . -name "*.java" | xargs grep -l "IS_OS_MAC_OSX_SONOMA" 2>/dev/null | while read f; do
+              sed -i 's/SystemUtils\.IS_OS_MAC_OSX_SONOMA/false/g' "$f"
+              echo "Patched $f"
+            done
+          fi
+
+          ./gradlew jar --no-daemon 2>&1 | tail -20
+
+          # Find JAR containing SteamClient
+          MAIN_JAR=""
+          for j in $(find . -name "*.jar" -path "*/build/libs/*" \
+              | grep -v "sources\|javadoc\|test" | sort); do
+            if jar tf "$j" 2>/dev/null | grep -q "SteamClient.class"; then
+              MAIN_JAR="$j"
+              break
+            fi
+          done
+          if [ -z "$MAIN_JAR" ]; then
+            MAIN_JAR=$(find . -name "*.jar" -path "*/build/libs/*" \
+              | grep -v "sources\|javadoc\|test" \
+              | while read f; do echo "$(wc -c < "$f") $f"; done \
+              | sort -rn | head -1 | cut -d' ' -f2-)
+          fi
+          echo "Using JAR: $MAIN_JAR ($(du -sh "$MAIN_JAR" | cut -f1))"
+          cp "$MAIN_JAR" ../javasteam.jar
+
+          # protobuf-java from Gradle cache (same version JavaSteam was built against)
+          PROTO_JAR=$(find ~/.gradle/caches -name "protobuf-java-*.jar" \
+            ! -name "*sources*" ! -name "*javadoc*" 2>/dev/null | head -1)
+          [ -n "$PROTO_JAR" ] && cp "$PROTO_JAR" ../protobuf-java.jar || { echo "ERROR: protobuf-java not found"; exit 1; }
+
+          # commons-lang3 from Gradle cache
+          LANG3_JAR=$(find ~/.gradle/caches -name "commons-lang3-*.jar" \
+            ! -name "*sources*" ! -name "*javadoc*" 2>/dev/null | sort -V | tail -1)
+          if [ -n "$LANG3_JAR" ]; then
+            cp "$LANG3_JAR" ../commons-lang3.jar
+          else
+            wget -q "https://repo1.maven.org/maven2/org/apache/commons/commons-lang3/3.14.0/commons-lang3-3.14.0.jar" \
+              -O ../commons-lang3.jar
+          fi
+
+          # ZXing (QR code) from Maven
+          wget -q "https://repo1.maven.org/maven2/com/google/zxing/core/3.5.3/core-3.5.3.jar" \
+            -O ../zxing-core.jar
+
+          # kotlinx.coroutines.future.FutureKt extraction
+          FUTURE_JAR=$(find ~/.gradle/caches -name "*.jar" \
+            ! -name "*sources*" ! -name "*javadoc*" 2>/dev/null | \
+            while read j; do
+              jar tf "$j" 2>/dev/null | grep -q "kotlinx/coroutines/future/FutureKt" \
+                && echo "$j" && break
+            done | head -1)
+          if [ -z "$FUTURE_JAR" ]; then
+            COROUTINES_VER=$(find ~/.gradle/caches -name "kotlinx-coroutines-core-jvm-*.jar" \
+              ! -name "*sources*" ! -name "*javadoc*" 2>/dev/null | \
+              grep -oP 'kotlinx-coroutines-core-jvm-\K[0-9.]+' | sort -V | tail -1 || echo "1.8.1")
+            wget -q "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-jdk8/${COROUTINES_VER}/kotlinx-coroutines-jdk8-${COROUTINES_VER}.jar" \
+              -O /tmp/coroutines-jdk8-fallback.jar
+            FUTURE_JAR="/tmp/coroutines-jdk8-fallback.jar"
+          fi
+          FUTURE_ENTRIES=$(jar tf "$FUTURE_JAR" | grep "^kotlinx/coroutines/future/")
+          mkdir -p coroutines_future_extract
+          cd coroutines_future_extract
+          jar xf "$FUTURE_JAR" $FUTURE_ENTRIES
+          cd ..
+          echo "FutureKt classes: $(find coroutines_future_extract -name '*.class' | wc -l)"
+          cp -r coroutines_future_extract ../coroutines_future_extract
+
+          # kotlin.enums extraction
+          KOTLIN_STDLIB="$HOME/kotlinc/lib/kotlin-stdlib.jar"
+          ENUM_ENTRIES=$(jar tf "$KOTLIN_STDLIB" 2>/dev/null | grep "^kotlin/enums/")
+          if [ -n "$ENUM_ENTRIES" ]; then
+            mkdir -p kotlin_enums_extract
+            cd kotlin_enums_extract
+            jar xf "$KOTLIN_STDLIB" $ENUM_ENTRIES
+            cd ..
+          else
+            mkdir -p kotlin_enums_extract
+          fi
+          cp -r kotlin_enums_extract ../kotlin_enums_extract
+
+          # kotlin.coroutines.jvm.internal.SpillingKt (Kotlin 2.x)
+          SPILLING_ENTRY="kotlin/coroutines/jvm/internal/SpillingKt.class"
+          mkdir -p kotlin_spilling_extract
+          KT2_STDLIB=$(find ~/.gradle/caches -name "kotlin-stdlib-*.jar" \
+            ! -name "*sources*" ! -name "*javadoc*" ! -name "*metadata*" 2>/dev/null \
+            | sort -V | tail -1)
+          if [ -n "$KT2_STDLIB" ] && jar tf "$KT2_STDLIB" 2>/dev/null | grep -q "$SPILLING_ENTRY"; then
+            cd kotlin_spilling_extract
+            jar xf "$KT2_STDLIB" "$SPILLING_ENTRY"
+            cd ..
+            echo "Extracted SpillingKt.class"
+          fi
+          cp -r kotlin_spilling_extract ../kotlin_spilling_extract
+
+          # DepotDownloader JAR
+          DD_JAR=$(find . -name "javasteam-depotdownloader-*.jar" -path "*/build/libs/*" \
+            ! -name "*sources*" ! -name "*javadoc*" 2>/dev/null | head -1)
+          if [ -n "$DD_JAR" ]; then
+            cp "$DD_JAR" ../javasteam-depotdownloader.jar
+          else
+            touch ../javasteam-depotdownloader.jar
+          fi
+
+          # DepotDownloader transitive deps
+          GRADLE_CACHE=~/.gradle/caches/modules-2/files-2.1
+          gather_jar() {
+            local pattern="$1" dest="$2" found
+            found=$(find "$GRADLE_CACHE" -name "$pattern" \
+              ! -name "*sources*" ! -name "*javadoc*" 2>/dev/null | sort -V | tail -1)
+            if [ -n "$found" ]; then
+              cp "$found" "$dest"
+              echo "  ✓ $pattern → $(du -sh "$dest" | cut -f1)"
+            else
+              echo "  ✗ $pattern NOT FOUND — creating placeholder"
+              touch "$dest"
+            fi
+          }
+          mkdir -p ../depot_deps
+          gather_jar "ktor-client-cio-jvm-*.jar"              "../depot_deps/ktor-client-cio.jar"
+          gather_jar "ktor-client-core-jvm-*.jar"             "../depot_deps/ktor-client-core.jar"
+          gather_jar "ktor-io-jvm-*.jar"                      "../depot_deps/ktor-io.jar"
+          gather_jar "ktor-http-jvm-*.jar"                    "../depot_deps/ktor-http.jar"
+          gather_jar "ktor-utils-jvm-*.jar"                   "../depot_deps/ktor-utils.jar"
+          gather_jar "ktor-network-jvm-*.jar"                 "../depot_deps/ktor-network.jar"
+          gather_jar "ktor-network-tls-jvm-*.jar"             "../depot_deps/ktor-network-tls.jar"
+          gather_jar "okio-jvm-*.jar"                         "../depot_deps/okio.jar"
+          gather_jar "okhttp-jvm-*.jar"                       "../depot_deps/okhttp.jar"
+          gather_jar "okhttp-coroutines-*.jar"                "../depot_deps/okhttp-coroutines.jar"
+          gather_jar "kotlinx-io-core-jvm-*.jar"              "../depot_deps/kotlinx-io-core.jar"
+          gather_jar "kotlinx-serialization-json-jvm-*.jar"   "../depot_deps/kotlinx-serialization-json.jar"
+          gather_jar "kotlinx-serialization-core-jvm-*.jar"   "../depot_deps/kotlinx-serialization-core.jar"
+          ls -lh ../depot_deps/
+
+          cd ..
+          ls -lh javasteam.jar protobuf-java.jar commons-lang3.jar zxing-core.jar javasteam-depotdownloader.jar
+
       - name: Decompile APK
         run: |
           apktool d base.apk -o apktool_out -f
@@ -44,19 +229,17 @@ jobs:
 
       - name: Apply patches
         run: |
-          # Copy smali patches and resource patches EXCEPT public.xml
-          # public.xml must be merged, not replaced, to preserve all existing pinned IDs
           cp -r patches/smali_classes8 apktool_out/
           cp -r patches/smali_classes2 apktool_out/
           cp -r patches/smali_classes10 apktool_out/
           cp patches/AndroidManifest.xml apktool_out/AndroidManifest.xml
           cp patches/res/menu/main_menu.xml apktool_out/res/menu/main_menu.xml
           cp patches/res/layout/download_progress_dialog.xml apktool_out/res/layout/download_progress_dialog.xml
-          # Inject our 3 new IDs into the existing public.xml (before </resources>)
-          sed -i 's|</resources>|    <public type="id" name="main_menu_gog" id="0x7f0903a6" />\n    <public type="id" name="main_menu_epic" id="0x7f0903a7" />\n    <public type="id" name="main_menu_amazon" id="0x7f0903a8" />\n</resources>|' \
+          # Inject 4 new IDs into the existing public.xml (before </resources>)
+          sed -i 's|</resources>|    <public type="id" name="main_menu_gog" id="0x7f0903a6" />\n    <public type="id" name="main_menu_epic" id="0x7f0903a7" />\n    <public type="id" name="main_menu_amazon" id="0x7f0903a8" />\n    <public type="id" name="main_menu_steam" id="0x7f0903a9" />\n</resources>|' \
             apktool_out/res/values/public.xml
           echo "Patches applied"
-          echo "public.xml IDs injected: $(grep 'main_menu_gog\|main_menu_epic\|main_menu_amazon' apktool_out/res/values/public.xml | wc -l) new entries"
+          echo "public.xml IDs injected: $(grep 'main_menu_gog\|main_menu_epic\|main_menu_amazon\|main_menu_steam' apktool_out/res/values/public.xml | wc -l) new entries"
 
       - name: Remove ab_*.png pseudo-PNG files before aapt2
         run: |
@@ -79,27 +262,129 @@ jobs:
           wget -q "https://repo1.maven.org/maven2/org/apache/commons/commons-compress/1.26.0/commons-compress-1.26.0.jar" -O commons-compress.jar
           echo "commons-compress.jar: $(du -sh commons-compress.jar | cut -f1)"
 
-      - name: Compile store extension → classes17.dex
+      - name: Compile Java store extension (GOG/Epic/Amazon + Steam) → classes17.dex
         run: |
           ANDROID_JAR=$(ls $ANDROID_SDK_ROOT/platforms/android-*/android.jar 2>/dev/null | sort -V | tail -1)
           echo "Using android.jar: $ANDROID_JAR"
 
           mkdir -p ext_classes
           javac -source 8 -target 8 \
-            -cp "$ANDROID_JAR:org-json.jar:commons-compress.jar" \
+            -cp "$ANDROID_JAR:org-json.jar:commons-compress.jar:javasteam.jar:javasteam-depotdownloader.jar:protobuf-java.jar:zxing-core.jar:commons-lang3.jar" \
             -d ext_classes \
-            extension/*.java
-          echo "Compiled $(find ext_classes -name '*.class' | wc -l) class files"
+            extension/*.java extension/steam/*.java
+          echo "Compiled $(find ext_classes -name '*.class' | wc -l) Java class files"
 
           BUILD_TOOLS=$(ls $ANDROID_SDK_ROOT/build-tools | sort -V | tail -1)
-          echo "Using build-tools: $BUILD_TOOLS"
           mkdir -p ext_dex
           $ANDROID_SDK_ROOT/build-tools/$BUILD_TOOLS/d8 \
             --release --min-api 26 --output ext_dex \
             $(find ext_classes -name '*.class') \
+            $(find coroutines_future_extract -name "*.class") \
+            $(find kotlin_enums_extract -name "*.class") \
+            $(find kotlin_spilling_extract -name "*.class") \
             org-json.jar \
-            commons-compress.jar
+            commons-compress.jar \
+            zxing-core.jar \
+            commons-lang3.jar \
+            protobuf-java.jar
           echo "classes17.dex ready: $(du -sh ext_dex/classes.dex | cut -f1)"
+
+      - name: Bundle JavaSteam → classes18.dex
+        run: |
+          BUILD_TOOLS=$(ls $ANDROID_SDK_ROOT/build-tools | sort -V | tail -1)
+          mkdir -p ext_steam_lib_dex
+          $ANDROID_SDK_ROOT/build-tools/$BUILD_TOOLS/d8 \
+            --release --min-api 26 --output ext_steam_lib_dex \
+            javasteam.jar
+          echo "JavaSteam DEX output:"
+          ls -lh ext_steam_lib_dex/
+          echo "NEXT_DEX_IDX=18" >> $GITHUB_ENV
+
+      - name: Compile Kotlin Steam extension → DEX
+        run: |
+          ANDROID_JAR=$(ls $ANDROID_SDK_ROOT/platforms/android-*/android.jar 2>/dev/null \
+            | sort -V | tail -1)
+          BUILD_TOOLS=$(ls $ANDROID_SDK_ROOT/build-tools | sort -V | tail -1)
+
+          # Strip Kotlin module metadata so kotlinc 1.9.x doesn't error on 2.x metadata
+          zip -d javasteam.jar 'META-INF/*.kotlin_module' 2>/dev/null || true
+          zip -d javasteam-depotdownloader.jar 'META-INF/*.kotlin_module' 2>/dev/null || true
+          for dep in depot_deps/*.jar; do
+            zip -d "$dep" 'META-INF/*.kotlin_module' 2>/dev/null || true
+          done
+
+          KT_FILES=$(find extension/steam -name "*.kt" | sort)
+          echo "Compiling Kotlin files: $KT_FILES"
+
+          DEPOT_CP=""
+          for dep in depot_deps/*.jar javasteam-depotdownloader.jar; do
+            [ -s "$dep" ] && DEPOT_CP="$DEPOT_CP:$dep"
+          done
+
+          # okhttp3 classpath for compat shim
+          OKHTTP_CP=""
+          if jar tf javasteam.jar 2>/dev/null | grep -q "^okhttp3/"; then
+            echo "okhttp3 embedded in javasteam.jar"
+          elif [ -s "depot_deps/okhttp.jar" ]; then
+            OKHTTP_CP=":depot_deps/okhttp.jar"
+          else
+            OKHTTP_JAR=$(find ~/.gradle/caches -path "*com.squareup.okhttp3*" \
+              -name "okhttp-*.jar" ! -name "*sources*" 2>/dev/null | sort -V | tail -1)
+            [ -n "$OKHTTP_JAR" ] && OKHTTP_CP=":$OKHTTP_JAR"
+          fi
+
+          COROUTINES_JAR=$(find ~/.gradle/caches -name "kotlinx-coroutines-core-jvm-*.jar" \
+            ! -name "*sources*" ! -name "*javadoc*" 2>/dev/null | sort -V | tail -1)
+          if [ -z "$COROUTINES_JAR" ]; then
+            wget -q "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/1.9.0/kotlinx-coroutines-core-jvm-1.9.0.jar" \
+              -O /tmp/coroutines-core.jar
+            COROUTINES_JAR="/tmp/coroutines-core.jar"
+          fi
+          COROUTINES_CP=":$COROUTINES_JAR"
+
+          KOTLIN_STDLIB="$HOME/kotlinc/lib/kotlin-stdlib.jar"
+          mkdir -p ext_kotlin_classes
+          kotlinc \
+            -no-stdlib \
+            -Xskip-metadata-version-check \
+            -classpath "$ANDROID_JAR:javasteam.jar:$KOTLIN_STDLIB:ext_classes:zxing-core.jar${DEPOT_CP}${COROUTINES_CP}${OKHTTP_CP}" \
+            -d ext_kotlin_classes \
+            $KT_FILES
+          echo "Kotlin compilation done: $(find ext_kotlin_classes -name '*.class' | wc -l) class files"
+
+          mkdir -p ext_kotlin_dex
+          $ANDROID_SDK_ROOT/build-tools/$BUILD_TOOLS/d8 \
+            --release --min-api 26 --output ext_kotlin_dex \
+            $(find ext_kotlin_classes -name "*.class")
+          echo "Kotlin DEX output:"
+          ls -lh ext_kotlin_dex/
+
+      - name: Bundle DepotDownloader → DEX
+        run: |
+          BUILD_TOOLS=$(ls $ANDROID_SDK_ROOT/build-tools | sort -V | tail -1)
+          mkdir -p ext_depot_dex
+
+          DD_JARS="javasteam-depotdownloader.jar"
+          for dep in depot_deps/*.jar; do
+            [ -s "$dep" ] || { echo "Skipping empty: $dep"; continue; }
+            case "$dep" in *okhttp-coroutines*) echo "Excluding (compat shim): $dep"; continue ;; esac
+            DD_JARS="$DD_JARS $dep"
+          done
+
+          for j in $DD_JARS; do
+            zip -d "$j" 'META-INF/*.kotlin_module' 2>/dev/null || true
+          done
+
+          if [ -s "javasteam-depotdownloader.jar" ]; then
+            $ANDROID_SDK_ROOT/build-tools/$BUILD_TOOLS/d8 \
+              --release --min-api 26 --output ext_depot_dex \
+              $DD_JARS
+            echo "DepotDownloader DEX output:"
+            ls -lh ext_depot_dex/
+          else
+            echo "javasteam-depotdownloader.jar is empty — skipping"
+            touch ext_depot_dex/.skip
+          fi
 
       - name: Rebuild APK
         run: |
@@ -120,11 +405,52 @@ jobs:
             echo "ab_/animated entries in APK: $(unzip -l rebuilt-unsigned.apk | grep 'res/drawable/ab_\|animated_background' | wc -l)"
           fi
 
-      - name: Inject classes17.dex
+      - name: Inject classes17.dex (Java stores — GOG/Epic/Amazon/Steam Java)
         run: |
           cp ext_dex/classes.dex classes17.dex
           zip -j rebuilt-unsigned.apk classes17.dex
           echo "classes17.dex injected: $(du -sh classes17.dex | cut -f1)"
+
+      - name: Inject classes18.dex+ (JavaSteam library)
+        run: |
+          DEX_IDX=18
+          for dex_file in $(ls ext_steam_lib_dex/classes*.dex | sort); do
+            TARGET_NAME="classes${DEX_IDX}.dex"
+            cp "$dex_file" "$TARGET_NAME"
+            zip -j rebuilt-unsigned.apk "$TARGET_NAME"
+            echo "${TARGET_NAME} injected ($(du -sh "$TARGET_NAME" | cut -f1))"
+            DEX_IDX=$((DEX_IDX + 1))
+          done
+          echo "NEXT_DEX_IDX=$DEX_IDX" >> $GITHUB_ENV
+
+      - name: Inject Kotlin Steam extension DEX
+        run: |
+          DEX_IDX=${{ env.NEXT_DEX_IDX }}
+          for dex_file in $(ls ext_kotlin_dex/classes*.dex | sort); do
+            TARGET_NAME="classes${DEX_IDX}.dex"
+            cp "$dex_file" "$TARGET_NAME"
+            zip -j rebuilt-unsigned.apk "$TARGET_NAME"
+            echo "${TARGET_NAME} injected ($(du -sh "$TARGET_NAME" | cut -f1))"
+            DEX_IDX=$((DEX_IDX + 1))
+          done
+          echo "NEXT_DEX_IDX_AFTER_KT=$DEX_IDX" >> $GITHUB_ENV
+
+      - name: Inject DepotDownloader DEX
+        run: |
+          DEX_IDX=${{ env.NEXT_DEX_IDX_AFTER_KT }}
+          if ls ext_depot_dex/classes*.dex 2>/dev/null | head -1 | grep -q "."; then
+            for dex_file in $(ls ext_depot_dex/classes*.dex | sort); do
+              TARGET_NAME="classes${DEX_IDX}.dex"
+              cp "$dex_file" "$TARGET_NAME"
+              zip -j rebuilt-unsigned.apk "$TARGET_NAME"
+              echo "${TARGET_NAME} injected ($(du -sh "$TARGET_NAME" | cut -f1))"
+              DEX_IDX=$((DEX_IDX + 1))
+            done
+            echo "DepotDownloader DEX injection complete. Final DEX index: $DEX_IDX"
+          else
+            echo "No DepotDownloader DEX files — skipping"
+          fi
+          echo "Final DEX listing:"
           unzip -l rebuilt-unsigned.apk | grep "classes.*dex"
 
       - name: Zipalign
@@ -151,10 +477,16 @@ jobs:
 
       - name: Create release and upload APK
         run: |
-          gh release create "${{ github.ref_name }}" \
-            "${{ env.APK_NAME }}" \
-            --title "Star Bionic ${{ github.ref_name }}" \
-            --prerelease \
-            --notes "Pre-release build: GOG + Epic + Amazon store integration for Star Bionic V1.0"
+          if gh release view "${{ github.ref_name }}" &>/dev/null; then
+            gh release upload "${{ github.ref_name }}" "${{ env.APK_NAME }}" --clobber
+            gh release edit "${{ github.ref_name }}" --draft=false --prerelease
+            echo "Uploaded to existing release ${{ github.ref_name }}"
+          else
+            gh release create "${{ github.ref_name }}" \
+              "${{ env.APK_NAME }}" \
+              --title "Star Bionic ${{ github.ref_name }}" \
+              --prerelease \
+              --notes "Pre-release build: GOG + Epic + Amazon + Steam store integration for Star Bionic V1.0"
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
