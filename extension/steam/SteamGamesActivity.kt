@@ -181,10 +181,13 @@ class SteamGamesActivity : Activity(), SteamRepository.SteamEventListener {
                     metaView.visibility = View.GONE
                 }
 
-                // Installed indicator + uninstall button
+                val launchBtn = infoView.getChildAt(7) as Button
+
+                // Installed indicator + action buttons
                 if (game.isInstalled) {
                     installedLabel.visibility = View.VISIBLE
                     uninstallBtn.visibility   = View.VISIBLE
+                    launchBtn.visibility      = View.VISIBLE
                     uninstallBtn.setOnClickListener {
                         val db = SteamRepository.getInstance().database
                         db.markUninstalled(game.appId)
@@ -193,9 +196,11 @@ class SteamGamesActivity : Activity(), SteamRepository.SteamEventListener {
                         }
                         loadGames()
                     }
+                    launchBtn.setOnClickListener { launchInstalledGame(game) }
                 } else {
                     installedLabel.visibility = View.GONE
                     uninstallBtn.visibility   = View.GONE
+                    launchBtn.visibility      = View.GONE
                 }
 
                 // Reset art to placeholder then kick off async load
@@ -410,17 +415,28 @@ class SteamGamesActivity : Activity(), SteamRepository.SteamEventListener {
             visibility = View.GONE
         }
 
+        // child 7: launch button (choose container + add to shortcuts)
+        val launchBtn = Button(this@SteamGamesActivity).apply {
+            text = "Launch / Add to Shortcuts"
+            textSize = 11f
+            setTextColor(Color.WHITE)
+            setBackgroundColor(0xFF2E7D32.toInt())  // green
+            setPadding(dp(8), dp(2), dp(8), dp(2))
+            visibility = View.GONE
+        }
+
         val wrapLp = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        val uninstallLp = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT, dp(30)).apply { topMargin = dp(3) }
+        val actionLp = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(30)).apply { topMargin = dp(3) }
         infoLayout.addView(nameView,       wrapLp)
         infoLayout.addView(developerView,  wrapLp)
         infoLayout.addView(genresView,     wrapLp)
         infoLayout.addView(sizeView,       wrapLp)
         infoLayout.addView(metaView,       wrapLp)
         infoLayout.addView(installedLabel, wrapLp)
-        infoLayout.addView(uninstallBtn,   uninstallLp)
+        infoLayout.addView(uninstallBtn,   actionLp)
+        infoLayout.addView(launchBtn,      actionLp)
 
         addView(infoLayout, LinearLayout.LayoutParams(0, artHeight, 1f))
 
@@ -429,6 +445,52 @@ class SteamGamesActivity : Activity(), SteamRepository.SteamEventListener {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).also { it.bottomMargin = dp(2) }
+    }
+
+    // -------------------------------------------------------------------------
+    // Launch helper — choose exe then pick container via LudashiLaunchBridge
+    // -------------------------------------------------------------------------
+
+    private fun launchInstalledGame(game: SteamGame) {
+        if (game.installDir.isEmpty()) {
+            Toast.makeText(this, "Install directory not set", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val installDir = java.io.File(game.installDir)
+        Thread {
+            val exeFiles = mutableListOf<java.io.File>()
+            AmazonLaunchHelper.collectExe(installDir, exeFiles)
+            if (exeFiles.isEmpty()) {
+                ui.post {
+                    Toast.makeText(this, "No .exe found in install directory", Toast.LENGTH_LONG).show()
+                }
+                return@Thread
+            }
+            val lowerTitle = game.name.lowercase()
+            exeFiles.sortWith { a, b ->
+                AmazonLaunchHelper.scoreExe(b, lowerTitle) - AmazonLaunchHelper.scoreExe(a, lowerTitle)
+            }
+            if (exeFiles.size == 1) {
+                ui.post { LudashiLaunchBridge.addToLauncher(this, game.name, exeFiles[0].absolutePath) }
+                return@Thread
+            }
+            // Multiple exes — let user pick
+            val candidates = exeFiles.map { it.absolutePath }
+            val labels = candidates.map { path ->
+                val f = java.io.File(path)
+                val parent = f.parentFile
+                if (parent != null) "${parent.name}/${f.name}" else f.name
+            }.toTypedArray()
+            ui.post {
+                android.app.AlertDialog.Builder(this)
+                    .setTitle("Select executable for \"${game.name}\"")
+                    .setItems(labels) { _, which ->
+                        LudashiLaunchBridge.addToLauncher(this, game.name, candidates[which])
+                    }
+                    .setCancelable(true)
+                    .show()
+            }
+        }.start()
     }
 
     private fun fmtSize(bytes: Long): String = when {
