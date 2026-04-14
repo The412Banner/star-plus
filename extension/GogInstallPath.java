@@ -21,8 +21,8 @@ public final class GogInstallPath {
 
     /**
      * Converts an Android absolute path to a Wine Windows path.
-     * Wine mounts the Android filesystem at Z:, so
-     * /data/user/0/.../game.exe → Z:\data\user\0\...\game.exe
+     * Wine mounts the Android filesystem at Z:, so forward slashes
+     * become backslashes and the path is prefixed with Z:.
      */
     public static String toWinePath(Activity activity, String androidPath) {
         return "Z:" + androidPath.replace('/', '\\');
