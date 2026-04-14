@@ -2,6 +2,17 @@
 
 ---
 
+### [pre] — v1.2.0-pre — Store sync from BannerHub (2026-04-14)
+**Commit:** `37d9616` | **Tag:** v1.2.0-pre | **CI:** queued run 24422991780
+
+#### What changed
+- Synced all GOG, Epic, Amazon Java files from BannerHub (latest updates)
+- Added 7 new files: GogGameDetailActivity, EpicGameDetailActivity, AmazonGameDetailActivity, GogCloudSaveManager, EpicCloudSaveManager, EpicFreeGamesActivity, FolderPickerActivity
+- Launch bridge adapted for all new activities (triggerLaunch → addToLauncher, pendingLaunchExe → StarBionicLaunchBridge.addToLauncherWithArt)
+- DLC management, cloud saves (GOG + Epic), free games section (Epic), ratings (GOG), detail screens for all 3 stores
+
+---
+
 ### [stable] — v1.1.0 — Steam + cover art on shortcuts (2026-04-13)
 **Commit:** `40c02ff` | **Tag:** v1.1.0 | **CI:** ✅ run 24341257114
 
